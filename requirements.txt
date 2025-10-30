@@ -1,0 +1,6 @@
+# Файл со списком всех библиотек - быстрое скачивание: pip install -r requirements.txt
+
+pyTelegramBotAPI==4.29.1
+pydub==0.25.1
+SpeechRecognition==3.14.3
+python-dotenv==1.2.1
