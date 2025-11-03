@@ -3,16 +3,46 @@ from dotenv import load_dotenv
 import telebot
 import speech_recognition
 from pydub import AudioSegment
+from PIL import Image, ImageEnhance, ImageFilter
 
 load_dotenv()
 
 token = os.getenv('BOT_TOKEN')
+
+print(f"Путь к .env: /home/AlbertFront/.env")
+print(f"Файл .env существует: {os.path.exists('/home/AlbertFront/.env')}")
+print(f"Токен загружен: {'Да' if token else 'Нет'}")
+
+if token:
+    print(f"Первые 10 символов токена: {token[:5]}...")
+else:
+    print("❌ ТОКЕН НЕ ЗАГРУЖЕН!")
+    exit(1)
+
 # Создаем бота, передаем ему токен из BotFather
 bot = telebot.TeleBot(token)
 
 TEMP_DIR = 'temp_audio'
 if not os.path.exists(TEMP_DIR):
     os.makedirs(TEMP_DIR)
+
+def transform_image(filename):
+    source_image = Image.open(filename)
+    # enhanced_image = ImageEnhance.Contrast(source_image).enhance(1.8)
+
+    # Наложим фильтр: ImageFilter.EMBOSS - вдавливание
+    enhanced_image = source_image.filter(ImageFilter.EMBOSS)
+
+    # Нужно конвертировать RGBA в RGB для сохранения в JPEG:
+    enhanced_image = enhanced_image.convert('RGB')
+
+    width = enhanced_image.size[0]
+    height = enhanced_image.size[1]
+    enhanced_image = enhanced_image.resize((width // 2, height // 2))
+
+    # Пересохраним изображение:
+    enhanced_image.save(filename)
+    return filename
 
 # Конвертация формата файлов oga в wav
 def convert_voice_format(filename):
@@ -62,6 +92,34 @@ def download_file(bot, file_id):
         f.write(downloaded_file)
 
     return filename
+# Пересылка обратно пользователю сообщения-картинки ботом
+@bot.message_handler(content_types=['photo'])
+def resend_photo(message):
+    try:
+        # Скачиваем последний файл в списке с максимальным разрешением по file_id
+        file_id = message.photo[-1].file_id
+        filename = download_file(bot, file_id)
+
+        # Трансформируем изображение
+        transform_image(filename)
+
+        # Открываем изображение из файла с помощью функции open, 'rb' = read bytes
+        image = open(filename, 'rb')
+
+        # Отправляем изображение в чат с пользователем
+        with open(filename, 'rb') as image:
+            bot.send_photo(message.chat.id, image, caption="✅ Применён фильтр EMBOSS")
+
+        # Не забываем закрыть файл
+        image.close()
+
+        # Удаляем ненужные изображения
+        if os.path.exists(filename):
+            os.remove(filename)
+
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Ошибка обработки фото: {e}")
+        print(f"Ошибка в resend_photo: {e}")
 
 #@ - инструкция, для чего применяется последующая функция - здесь ф-ия say_hello применяется для обработчика сообщений бота в случае запуска команды старт
 @bot.message_handler(commands=['start', 'salom', 'привет'])
